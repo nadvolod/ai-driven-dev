@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import Link from 'next/link';
 
 import './globals.css';
 
@@ -98,25 +99,25 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 </div>
                 
                 {/* Navigation Links */}
-                <nav className="hidden md:flex space-x-6">
-                  <a
+                <nav className="hidden md:flex items-center space-x-8">
+                  <Link
                     href="/"
-                    className="text-sm font-medium text-foreground transition-colors hover:text-primary"
+                    className="text-foreground hover:text-primary transition-colors"
                   >
                     Dashboard
-                  </a>
-                  <a
+                  </Link>
+                  <Link
+                    href="/demo"
+                    className="text-foreground hover:text-primary transition-colors"
+                  >
+                    Demo
+                  </Link>
+                  <Link
                     href="/tasks"
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+                    className="text-foreground hover:text-primary transition-colors"
                   >
                     Tasks
-                  </a>
-                  <a
-                    href="/projects"
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-                  >
-                    Projects
-                  </a>
+                  </Link>
                 </nav>
               </div>
 

@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Task, TaskPriority } from '../types/task';
+
+import { cn, formatDate } from '@/lib/utils';
+import { Task, TaskPriority } from '@/types/task';
 
 /**
  * Props interface for TaskCard component
@@ -37,7 +39,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onToggleComplete,
   onEdit,
   onDelete,
-  className = ''
+  className
 }) => {
   /**
    * Get priority-specific styling classes
@@ -45,13 +47,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const getPriorityClasses = (priority: TaskPriority): string => {
     switch (priority) {
       case TaskPriority.HIGH:
-        return 'border-l-red-500 bg-red-50';
+        return 'border-l-red-500 bg-red-50 dark:bg-red-950/20';
       case TaskPriority.MEDIUM:
-        return 'border-l-yellow-500 bg-yellow-50';
+        return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20';
       case TaskPriority.LOW:
-        return 'border-l-green-500 bg-green-50';
+        return 'border-l-green-500 bg-green-50 dark:bg-green-950/20';
       default:
-        return 'border-l-gray-500 bg-gray-50';
+        return 'border-l-gray-500 bg-gray-50 dark:bg-gray-950/20';
     }
   };
 
@@ -61,78 +63,79 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const getPriorityBadgeClasses = (priority: TaskPriority): string => {
     switch (priority) {
       case TaskPriority.HIGH:
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       case TaskPriority.MEDIUM:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case TaskPriority.LOW:
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
-  };
-
-  /**
-   * Format date for display
-   */
-  const formatDate = (date: Date): string => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
   };
 
   return (
     <div
-      className={`
-        border-l-4 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200
-        ${getPriorityClasses(task.priority)}
-        ${task.completed ? 'opacity-75' : ''}
-        ${className}
-      `}
+      className={cn(
+        'card border-l-4 p-6 transition-all duration-200 hover:shadow-lg group',
+        getPriorityClasses(task.priority),
+        task.completed && 'opacity-75',
+        className
+      )}
     >
       {/* Header with title and actions */}
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center space-x-3 flex-1">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-start space-x-3 flex-1 min-w-0">
           {/* Completion checkbox */}
           <input
             type="checkbox"
             checked={task.completed}
             onChange={() => onToggleComplete(task.id)}
-            className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            className={cn(
+              'mt-1 h-5 w-5 rounded border-gray-300 text-primary',
+              'focus:ring-2 focus:ring-primary focus:ring-offset-2',
+              'transition-colors duration-200',
+              'dark:border-gray-600 dark:bg-gray-700'
+            )}
             aria-label={`Mark task "${task.title}" as ${task.completed ? 'incomplete' : 'complete'}`}
           />
           
           {/* Task title */}
-          <h3
-            className={`
-              text-lg font-medium text-gray-900 flex-1
-              ${task.completed ? 'line-through text-gray-500' : ''}
-            `}
-          >
-            {task.title}
-          </h3>
+          <div className="flex-1 min-w-0">
+            <h3
+              className={cn(
+                'text-lg font-semibold text-foreground leading-tight',
+                task.completed && 'line-through text-muted-foreground'
+              )}
+            >
+              {task.title}
+            </h3>
+          </div>
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center space-x-2 ml-4">
+        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={() => onEdit(task)}
-            className="p-1 text-gray-400 hover:text-blue-600 transition-colors duration-200"
+            className={cn(
+              'btn btn-ghost btn-sm p-2 h-8 w-8',
+              'text-muted-foreground hover:text-primary hover:bg-primary/10'
+            )}
             aria-label={`Edit task "${task.title}"`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
           
           <button
             onClick={() => onDelete(task.id)}
-            className="p-1 text-gray-400 hover:text-red-600 transition-colors duration-200"
+            className={cn(
+              'btn btn-ghost btn-sm p-2 h-8 w-8',
+              'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+            )}
             aria-label={`Delete task "${task.title}"`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
@@ -141,37 +144,47 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Description */}
       {task.description && (
-        <p className={`text-sm text-gray-600 mb-3 ${task.completed ? 'line-through' : ''}`}>
+        <p 
+          className={cn(
+            'text-sm text-muted-foreground mb-4 leading-relaxed',
+            task.completed && 'line-through'
+          )}
+        >
           {task.description}
         </p>
       )}
 
       {/* Footer with metadata */}
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <div className="flex items-center space-x-3">
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+        <div className="flex items-center space-x-2">
           {/* Priority badge */}
           <span
-            className={`
-              px-2 py-1 rounded-full text-xs font-medium
-              ${getPriorityBadgeClasses(task.priority)}
-            `}
+            className={cn(
+              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+              getPriorityBadgeClasses(task.priority)
+            )}
           >
+            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current"></span>
             {task.priority.toUpperCase()}
           </span>
 
           {/* Category */}
           {task.category && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
               {task.category}
             </span>
           )}
         </div>
 
         {/* Timestamps */}
-        <div className="flex flex-col items-end space-y-1">
-          <span>Created: {formatDate(task.createdAt)}</span>
+        <div className="flex flex-col items-end space-y-1 text-xs text-muted-foreground">
+          <time dateTime={task.createdAt.toISOString()}>
+            Created: {formatDate(task.createdAt)}
+          </time>
           {task.updatedAt.getTime() !== task.createdAt.getTime() && (
-            <span>Updated: {formatDate(task.updatedAt)}</span>
+            <time dateTime={task.updatedAt.toISOString()}>
+              Updated: {formatDate(task.updatedAt)}
+            </time>
           )}
         </div>
       </div>
