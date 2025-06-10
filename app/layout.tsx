@@ -99,26 +99,32 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 </div>
                 
                 {/* Navigation Links */}
-                <nav className="hidden md:flex items-center space-x-8">
-                  <Link
-                    href="/"
-                    className="text-foreground hover:text-primary transition-colors"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    href="/demo"
-                    className="text-foreground hover:text-primary transition-colors"
-                  >
-                    Demo
-                  </Link>
-                  <Link
-                    href="/tasks"
-                    className="text-foreground hover:text-primary transition-colors"
-                  >
-                    Tasks
-                  </Link>
-                </nav>
+                            <nav className="hidden md:flex items-center space-x-8">
+              <Link
+                href="/"
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/demo"
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                Demo
+              </Link>
+              <Link
+                href="/api-test"
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                API Test
+              </Link>
+              <Link
+                href="/tasks"
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                Tasks
+              </Link>
+            </nav>
               </div>
 
               {/* User Actions */}
