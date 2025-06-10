@@ -88,7 +88,7 @@ export const AddTaskForm: React.FC<AddTaskFormProps> = ({
     control,
     reset,
     watch,
-    formState: { errors, isValid, isDirty }
+    formState: { errors, isValid }
   } = useForm<TaskFormData>({
     mode: 'onChange',
     defaultValues: {

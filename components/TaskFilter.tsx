@@ -1,16 +1,16 @@
 'use client';
 
 import React from 'react';
-import { TaskFilter, TaskPriority, TaskStatus } from '../types/task';
+import { TaskFilter as TaskFilterOptions, TaskPriority, TaskStatus } from '../types/task';
 
 /**
  * Props interface for TaskFilter component
  */
 interface TaskFilterProps {
   /** Current filter settings */
-  filter: TaskFilter;
+  filter: TaskFilterOptions;
   /** Callback function when filter changes */
-  onFilterChange: (filter: TaskFilter) => void;
+  onFilterChange: (filter: TaskFilterOptions) => void;
   /** Available categories for filtering */
   availableCategories: string[];
   /** Optional className for custom styling */
@@ -50,8 +50,9 @@ export const TaskFilter: React.FC<TaskFilterProps> = ({
    */
   const handlePriorityChange = (priority: TaskPriority | undefined) => {
     onFilterChange({
-      ...filter,
-      priority
+      status: filter.status,
+      ...(priority && { priority }),
+      ...(filter.category && { category: filter.category })
     });
   };
 
@@ -60,19 +61,18 @@ export const TaskFilter: React.FC<TaskFilterProps> = ({
    */
   const handleCategoryChange = (category: string | undefined) => {
     onFilterChange({
-      ...filter,
-      category
+      status: filter.status,
+      ...(filter.priority && { priority: filter.priority }),
+      ...(category && { category })
     });
   };
 
   /**
    * Clear all filters
    */
-  const clearFilters = () => {
+  const handleClearFilters = () => {
     onFilterChange({
-      status: TaskStatus.ALL,
-      priority: undefined,
-      category: undefined
+      status: TaskStatus.ALL
     });
   };
 
@@ -107,7 +107,7 @@ export const TaskFilter: React.FC<TaskFilterProps> = ({
         <h3 className="text-lg font-medium text-gray-900">Filters</h3>
         {hasActiveFilters() && (
           <button
-            onClick={clearFilters}
+            onClick={handleClearFilters}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
             Clear all

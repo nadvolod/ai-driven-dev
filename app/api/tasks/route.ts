@@ -1,6 +1,8 @@
-import { API_ERROR_CODES, ApiError, GetTasksResponse, HTTP_STATUS } from '@/types/api';
+import { generateId } from '@/lib/utils';
+import { API_ERROR_CODES, ApiError, CreateTaskResponse, GetTasksResponse, HTTP_STATUS } from '@/types/api';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 /**
  * In-memory task storage for demo purposes
@@ -288,6 +290,146 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     return NextResponse.json(
       { success: false, error: errorResponse },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
+    );
+  }
+}
+
+/**
+ * Zod schema for validating task creation requests
+ */
+const createTaskSchema = z.object({
+  title: z.string()
+    .min(1, 'Title is required')
+    .max(100, 'Title must be 100 characters or less')
+    .trim(),
+  description: z.string()
+    .max(500, 'Description must be 500 characters or less')
+    .optional(),
+  priority: z.enum(['low', 'medium', 'high'], {
+    errorMap: () => ({ message: 'Priority must be low, medium, or high' })
+  }),
+  category: z.string()
+    .max(50, 'Category must be 50 characters or less')
+    .optional()
+});
+
+/**
+ * POST /api/tasks
+ * 
+ * Creates a new task with the provided data.
+ * 
+ * Request Body:
+ * - title: Required string (1-100 characters)
+ * - description: Optional string (max 500 characters)
+ * - priority: Required enum ('low', 'medium', 'high')
+ * - category: Optional string (max 50 characters)
+ * 
+ * @param request - The NextRequest object containing the task data in the body
+ * @returns NextResponse with created task or error response
+ * 
+ * @example
+ * POST /api/tasks
+ * Body: {
+ *   "title": "New task",
+ *   "description": "Task description",
+ *   "priority": "high",
+ *   "category": "Development"
+ * }
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": "uuid-here",
+ *     "title": "New task",
+ *     "description": "Task description",
+ *     "completed": false,
+ *     "priority": "high",
+ *     "createdAt": "2025-01-10T...",
+ *     "updatedAt": "2025-01-10T...",
+ *     "category": "Development"
+ *   }
+ * }
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    // Parse request body
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.INVALID_REQUEST_BODY,
+            message: 'Invalid JSON in request body',
+            details: { reason: 'Request body must be valid JSON' }
+          }
+        },
+        { status: HTTP_STATUS.BAD_REQUEST }
+      );
+    }
+
+    // Validate request body using Zod schema
+    const validation = createTaskSchema.safeParse(body);
+    
+    if (!validation.success) {
+      const errorDetails = validation.error.errors.map(err => 
+        `${err.path.join('.')}: ${err.message}`
+      );
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { errors: errorDetails }
+          }
+        },
+        { status: HTTP_STATUS.BAD_REQUEST }
+      );
+    }
+
+    // Create new task with validated data
+    const now = new Date();
+    const newTask: Task = {
+      id: generateId(),
+      title: validation.data.title,
+      completed: false,
+      priority: validation.data.priority as TaskPriority,
+      createdAt: now,
+      updatedAt: now,
+      ...(validation.data.description && { description: validation.data.description }),
+      ...(validation.data.category && { category: validation.data.category })
+    };
+
+    // Add task to in-memory storage
+    tasks.push(newTask);
+
+    // Return success response with created task
+    return NextResponse.json(
+      {
+        success: true,
+        data: newTask
+      } as CreateTaskResponse,
+      { status: HTTP_STATUS.CREATED }
+    );
+
+  } catch (error) {
+    console.error('Error creating task:', error);
+    
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: API_ERROR_CODES.INTERNAL_SERVER_ERROR,
+          message: 'Internal server error',
+          details: { reason: 'An unexpected error occurred while creating the task' }
+        }
+      },
       { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
     );
   }
