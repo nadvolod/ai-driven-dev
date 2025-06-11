@@ -1,13 +1,13 @@
 'use client';
 
-import { useConfirmationDialog } from '@/components/ui/ConfirmationDialog';
-import { EmptyState, EmptyStatePresets } from '@/components/ui/EmptyState';
-import { ErrorMessage } from '@/components/ui/ErrorMessage';
-import { FormField, validators } from '@/components/ui/FormField';
-import { ButtonLoading, Loading } from '@/components/ui/Loading';
-import { useToast } from '@/components/ui/Toast';
-import { ApiError, LoadingState } from '@/types/ui';
 import React, { useState } from 'react';
+import { useConfirmationDialog } from '../../../components/ui/ConfirmationDialog';
+import { EmptyState, EmptyStatePresets } from '../../../components/ui/EmptyState';
+import { ErrorMessage } from '../../../components/ui/ErrorMessage';
+import { FormField, validators } from '../../../components/ui/FormField';
+import { ButtonLoading, Loading } from '../../../components/ui/Loading';
+import { useToast } from '../../../components/ui/Toast';
+import { ApiError, LoadingState } from '../../../types/ui';
 
 /**
  * Error Handling and UX Demo Page

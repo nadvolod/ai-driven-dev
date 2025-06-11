@@ -1,9 +1,9 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { CreateTaskResponse, GetTasksResponse } from '@/types/api';
-import { TaskPriority, TaskStatus } from '@/types/task';
 import { useState } from 'react';
+import { cn } from '../../lib/utils';
+import { CreateTaskResponse, GetTasksResponse } from '../../types/api';
+import { TaskPriority, TaskStatus } from '../../types/task';
 
 /**
  * Interface for API test form state

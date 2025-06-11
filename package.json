@@ -34,7 +34,10 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.57.0",
     "tailwind-merge": "^2.5.4",
-    "zod": "^3.25.57"
+    "zod": "^3.25.57",
+    "tailwindcss": "^3.4.13",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",
@@ -47,17 +50,15 @@
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
-    "autoprefixer": "^10.4.20",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.3.3",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "playwright": "^1.53.0",
-    "postcss": "^8.4.47",
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.8",
-    "tailwindcss": "^3.4.13",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "wait-on": "^7.2.0"
   },
   "engines": {
     "node": ">=18.17.0",

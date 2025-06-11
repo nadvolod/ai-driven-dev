@@ -1,7 +1,6 @@
 import { API_ERROR_CODES, ApiError, GetTasksResponse, HTTP_STATUS } from '@/types/api';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 
 /**
  * Basic Tasks API for Testing
@@ -239,25 +238,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
-
-/**
- * Zod schema for validating task creation requests
- */
-const createTaskSchema = z.object({
-  title: z.string()
-    .min(1, 'Title is required')
-    .max(100, 'Title must be 100 characters or less')
-    .trim(),
-  description: z.string()
-    .max(500, 'Description must be 500 characters or less')
-    .optional(),
-  priority: z.enum(['low', 'medium', 'high'], {
-    errorMap: () => ({ message: 'Priority must be low, medium, or high' })
-  }),
-  category: z.string()
-    .max(50, 'Category must be 50 characters or less')
-    .optional()
-});
 
 /**
  * POST /api/tasks

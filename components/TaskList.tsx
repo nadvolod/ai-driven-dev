@@ -139,44 +139,6 @@ export const TaskList: React.FC<TaskListProps> = ({
   }, [tasks, localTasks, currentFilter, userPreferences]);
 
   /**
-   * Handle task completion toggle
-   */
-  const handleToggleComplete = (taskId: string) => {
-    const updatedTasks = (tasks.length > 0 ? tasks : localTasks).map(task =>
-      task.id === taskId 
-        ? { ...task, completed: !task.completed, updatedAt: new Date() }
-        : task
-    );
-    
-    saveTasksToStorage(updatedTasks);
-    setLocalTasks(updatedTasks);
-    
-    if (onToggleComplete) {
-      onToggleComplete(taskId);
-    }
-    if (onTasksUpdate) {
-      onTasksUpdate(updatedTasks);
-    }
-  };
-
-  /**
-   * Handle task deletion
-   */
-  const handleDeleteTask = (taskId: string) => {
-    const updatedTasks = (tasks.length > 0 ? tasks : localTasks).filter(task => task.id !== taskId);
-    
-    saveTasksToStorage(updatedTasks);
-    setLocalTasks(updatedTasks);
-    
-    if (onDeleteTask) {
-      onDeleteTask(taskId);
-    }
-    if (onTasksUpdate) {
-      onTasksUpdate(updatedTasks);
-    }
-  };
-
-  /**
    * Get task statistics
    */
   const getTaskStats = () => {

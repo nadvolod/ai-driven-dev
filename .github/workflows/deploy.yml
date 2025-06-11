@@ -1,0 +1,244 @@
+name: Deploy to Vercel with Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Pre-deployment testing
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Start application for testing
+        run: npm run dev &
+        env:
+          NODE_ENV: test
+          PORT: 3000
+
+      - name: Wait for application to be ready
+        run: npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Run Playwright tests
+        run: npm run test
+        env:
+          CI: true
+          TEST_BASE_URL: http://localhost:3000
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-pre-deployment
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-pre-deployment
+          path: test-results/
+          retention-days: 7
+
+  # Deploy to Vercel
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 10
+    outputs:
+      preview-url: ${{ steps.deploy.outputs.preview-url }}
+      production-url: ${{ steps.deploy.outputs.production-url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
+        run: vercel pull --yes --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        run: vercel build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy project artifacts to Vercel
+        id: deploy
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "Deploying to production..."
+            URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+            echo "production-url=$URL" >> $GITHUB_OUTPUT
+          else
+            echo "Deploying to preview..."
+            URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+            echo "preview-url=$URL" >> $GITHUB_OUTPUT
+          fi
+          echo "Deployed to: $URL"
+          echo "deployment-url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with preview URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deploymentUrl = '${{ steps.deploy.outputs.preview-url }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployment ready!**\n\n✅ Preview URL: ${deploymentUrl}\n\n*Deployed from commit: ${context.sha.substring(0, 7)}*`
+            });
+
+  # Post-deployment testing
+  post-deploy-test:
+    name: Post-Deployment Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 15
+    if: always() && needs.deploy.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Determine deployment URL
+        id: url
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "test-url=${{ needs.deploy.outputs.production-url }}" >> $GITHUB_OUTPUT
+            echo "Testing production deployment"
+          else
+            echo "test-url=${{ needs.deploy.outputs.preview-url }}" >> $GITHUB_OUTPUT
+            echo "Testing preview deployment"
+          fi
+
+      - name: Wait for deployment to be ready
+        run: npx wait-on ${{ steps.url.outputs.test-url }} --timeout 120000
+
+      - name: Run smoke tests against deployment
+        run: npm run test:chrome
+        env:
+          CI: true
+          TEST_BASE_URL: ${{ steps.url.outputs.test-url }}
+
+      - name: Run mobile tests against deployment
+        run: npm run test:mobile:chrome
+        env:
+          CI: true
+          TEST_BASE_URL: ${{ steps.url.outputs.test-url }}
+
+      - name: Upload post-deployment test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-post-deployment
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Comment deployment status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const testUrl = '${{ steps.url.outputs.test-url }}';
+            const success = '${{ job.status }}' === 'success';
+            const icon = success ? '✅' : '❌';
+            const status = success ? 'passed' : 'failed';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${icon} **Post-deployment tests ${status}**\n\n🔗 Tested URL: ${testUrl}\n\n*Tests completed for commit: ${context.sha.substring(0, 7)}*`
+            });
+
+  # Lighthouse performance audit (production only)
+  lighthouse:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    needs: [deploy, post-deploy-test]
+    if: github.ref == 'refs/heads/main' && needs.deploy.result == 'success'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            ${{ needs.deploy.outputs.production-url }}
+            ${{ needs.deploy.outputs.production-url }}/demo/error-handling
+          configPath: '.lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-report
+          path: '.lighthouseci/'
+          retention-days: 7 
