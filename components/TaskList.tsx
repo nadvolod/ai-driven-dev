@@ -2,8 +2,14 @@
 
 import { cn, loadTasksFromStorage, loadUserPreferences, saveTasksToStorage, saveUserPreferences, sortTasks, UserPreferences } from '@/lib/utils';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
-import React, { useEffect, useMemo, useState } from 'react';
+import { LoadingState } from '@/types/ui';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TaskCard } from './TaskCard';
+import { useConfirmationDialog } from './ui/ConfirmationDialog';
+import { EmptyState, EmptyStatePresets } from './ui/EmptyState';
+import { ErrorMessage } from './ui/ErrorMessage';
+import { Loading } from './ui/Loading';
+import { useToast } from './ui/Toast';
 
 /**
  * Props interface for TaskList component
@@ -52,11 +58,19 @@ export const TaskList: React.FC<TaskListProps> = ({
   onDeleteTask,
   onTasksUpdate,
   currentFilter,
-  loading = false,
+  loading: _loading = false,
   className = ''
 }) => {
   const [userPreferences, setUserPreferences] = useState<UserPreferences>(loadUserPreferences());
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [loadingState, setLoadingState] = useState<LoadingState>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'createdAt'>('priority');
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  
+  const { addToast } = useToast();
+  const { confirm, ConfirmationDialog } = useConfirmationDialog();
 
   // Load tasks from localStorage on mount
   useEffect(() => {
@@ -198,15 +212,213 @@ export const TaskList: React.FC<TaskListProps> = ({
     </svg>
   );
 
+  /**
+   * Load initial data and preferences
+   */
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoadingState('loading');
+        setError(null);
+
+        // Simulate loading delay for demo
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const preferences = loadUserPreferences();
+        if (preferences) {
+          setSortBy(preferences.sortBy);
+          setShowCompleted(preferences.showCompleted);
+        }
+
+        setLoadingState('success');
+      } catch (err) {
+        setError('Failed to load tasks. Please try again.');
+        setLoadingState('error');
+        addToast({
+          type: 'error',
+          title: 'Loading Error',
+          message: 'Failed to load your tasks. Please refresh the page.'
+        });
+      }
+    };
+
+    loadData();
+  }, [addToast]);
+
+  /**
+   * Save user preferences when they change
+   */
+  useEffect(() => {
+    const preferences = { sortBy, showCompleted };
+    saveUserPreferences(preferences);
+  }, [sortBy, showCompleted]);
+
+  /**
+   * Handle task completion toggle
+   */
+  const handleTaskToggle = useCallback(async (taskId: string, completed: boolean) => {
+    try {
+      setLoadingState('loading');
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      onToggleComplete && onToggleComplete(taskId);
+      
+      setLoadingState('success');
+      addToast({
+        type: 'success',
+        title: completed ? 'Task Completed!' : 'Task Reopened',
+        message: completed ? 'Great job completing this task!' : 'Task has been marked as incomplete.'
+      });
+    } catch (err) {
+      setLoadingState('error');
+      addToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: 'Failed to update task. Please try again.'
+      });
+    }
+  }, [onToggleComplete, addToast]);
+
+  /**
+   * Handle task deletion with confirmation
+   */
+  const handleTaskDelete = useCallback(async (taskId: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const confirmed = await confirm({
+        title: 'Delete Task',
+        message: `Are you sure you want to delete "${task.title}"? This action cannot be undone.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel',
+        variant: 'danger'
+      });
+
+      if (!confirmed) return;
+
+      setDeletingTaskId(taskId);
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      onDeleteTask && onDeleteTask(taskId);
+      setDeletingTaskId(null);
+      
+      addToast({
+        type: 'success',
+        title: 'Task Deleted',
+        message: 'Task has been successfully deleted.',
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            // In a real app, you would restore the task here
+            addToast({
+              type: 'info',
+              title: 'Undo Feature',
+              message: 'Undo functionality would be implemented here.'
+            });
+          }
+        }
+      });
+    } catch (err) {
+      setDeletingTaskId(null);
+      addToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Failed to delete task. Please try again.'
+      });
+    }
+  }, [tasks, confirm, onDeleteTask, addToast]);
+
+  /**
+   * Handle retry on error
+   */
+  const handleRetry = useCallback(() => {
+    setLoadingState('idle');
+    setError(null);
+    // Trigger reload
+    window.location.reload();
+  }, []);
+
+  /**
+   * Get appropriate empty state
+   */
+  const getEmptyState = () => {
+    if (tasks.length === 0) {
+      return (
+        <EmptyState
+          {...EmptyStatePresets.noTasks}
+          action={{
+            label: 'Create Your First Task',
+            onClick: () => {
+              // Scroll to form or open modal
+              document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          className="col-span-full"
+        />
+      );
+    }
+
+    if (!showCompleted && stats.pending === 0) {
+      return (
+        <EmptyState
+          {...EmptyStatePresets.allCompleted}
+          action={{
+            label: 'Show Completed Tasks',
+            onClick: () => setShowCompleted(true),
+            variant: 'secondary'
+          }}
+          className="col-span-full"
+        />
+      );
+    }
+
+    if (processedTasks.length === 0) {
+      return (
+        <EmptyState
+          {...EmptyStatePresets.noResults}
+          action={{
+            label: 'Show All Tasks',
+            onClick: () => setShowCompleted(true),
+            variant: 'secondary'
+          }}
+          className="col-span-full"
+        />
+      );
+    }
+
+    return null;
+  };
+
   // Loading state
-  if (loading) {
+  if (loadingState === 'loading') {
     return (
       <div className={cn('space-y-6', className)}>
-        <div className="animate-pulse space-y-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg" />
-          ))}
-        </div>
+        <Loading 
+          variant="skeleton" 
+          center 
+          text="Loading your tasks..." 
+          className="py-8"
+        />
+      </div>
+    );
+  }
+
+  // Error state
+  if (loadingState === 'error' && error) {
+    return (
+      <div className={cn('space-y-6', className)}>
+        <ErrorMessage
+          error={error}
+          variant="card"
+          showRetry
+          onRetry={handleRetry}
+          className="max-w-md mx-auto"
+        />
       </div>
     );
   }
@@ -296,70 +508,30 @@ export const TaskList: React.FC<TaskListProps> = ({
       </div>
 
       {/* Task Grid */}
-      {processedTasks.length === 0 ? (
-        // Empty State
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-12">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              {currentFilter && (currentFilter.status !== TaskStatus.ALL || currentFilter.priority || currentFilter.category || currentFilter.search)
-                ? 'No matching tasks found'
-                : stats.total > 0 && userPreferences.hideCompleted
-                ? 'All tasks completed!'
-                : 'No tasks yet'
-              }
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 max-w-sm mx-auto">
-              {currentFilter && (currentFilter.status !== TaskStatus.ALL || currentFilter.priority || currentFilter.category || currentFilter.search)
-                ? 'Try adjusting your filters to see more tasks.'
-                : stats.total > 0 && userPreferences.hideCompleted
-                ? 'Great job! You can show completed tasks using the toggle above.'
-                : 'Create your first task to get started with managing your workflow.'
-              }
-            </p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {processedTasks.map((task, index) => (
+          <div
+            key={task.id}
+            className="animate-in slide-in-from-bottom-2 duration-300"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            <TaskCard
+              task={task}
+              onToggle={(completed) => handleTaskToggle(task.id, completed)}
+              onDelete={() => handleTaskDelete(task.id)}
+              onEdit={(updates) => onEditTask && onEditTask(updates)}
+              isDeleting={deletingTaskId === task.id}
+              className="h-full"
+            />
           </div>
-        </div>
-      ) : (
-        // Task Grid
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {processedTasks.map((task, index) => (
-            <div
-              key={task.id}
-              className="transform transition-all duration-300 ease-out"
-              style={{
-                animationDelay: `${index * 50}ms`,
-                animation: 'fadeInUp 0.5s ease-out forwards'
-              }}
-            >
-              <TaskCard
-                task={task}
-                onToggleComplete={handleToggleComplete}
-                onDelete={handleDeleteTask}
-                className="h-full"
-                {...(onEditTask && { onEdit: onEditTask })}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+        ))}
+        
+        {/* Empty State */}
+        {getEmptyState()}
+      </div>
 
-      {/* CSS Animation */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+      {/* Confirmation Dialog */}
+      {ConfirmationDialog}
     </div>
   );
 }; 
