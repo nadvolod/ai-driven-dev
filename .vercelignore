@@ -1,0 +1,11 @@
+README.md
+docs/
+tests/
+test-results/
+playwright-report/
+test-results.json
+playwright.config.ts
+.github/
+DEPLOYMENT.md
+.eslintrc.json
+.prettierrc.json 
