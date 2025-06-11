@@ -1,362 +1,367 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { TaskCard } from '@/components/TaskCard';
-import { TaskFilter as TaskFilterComponent } from '@/components/TaskFilter';
+import { TaskFilter } from '@/components/TaskFilter';
 import { TaskList } from '@/components/TaskList';
-import { generateId } from '@/lib/utils';
-import { CreateTaskInput, Task, TaskFilter, TaskPriority, TaskStatus } from '@/types/task';
+import { generateId, loadTasksFromStorage, saveTasksToStorage } from '@/lib/utils';
+import { Task, TaskPriority, TaskStatus } from '@/types/task';
+import { useEffect, useState } from 'react';
 
-// Sample tasks for demonstration
-const sampleTasks: Task[] = [
-  {
-    id: generateId(),
-    title: "Implement user authentication",
-    description: "Set up OAuth integration with Google and GitHub for secure user login. Include proper error handling and user session management.",
-    completed: false,
-    priority: TaskPriority.HIGH,
-    createdAt: new Date('2025-01-08T10:00:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-09T10:00:00.000Z'), // Fixed timestamp
-    category: "Development"
-  },
-  {
-    id: generateId(),
-    title: "Design system documentation",
-    description: "Create comprehensive documentation for our design system including component guidelines and usage examples.",
-    completed: true,
-    priority: TaskPriority.MEDIUM,
-    createdAt: new Date('2025-01-05T10:00:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-07T10:00:00.000Z'), // Fixed timestamp
-    category: "Design"
-  },
-  {
-    id: generateId(),
-    title: "Team standup meeting",
-    completed: true,
-    priority: TaskPriority.LOW,
-    createdAt: new Date('2025-01-09T10:00:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-09T10:00:00.000Z'), // Fixed timestamp
-    category: "Meetings"
-  },
-  {
-    id: generateId(),
-    title: "Fix responsive layout issues",
-    description: "Address mobile layout problems on the dashboard and task list pages. Test across different devices and screen sizes.",
-    completed: false,
-    priority: TaskPriority.HIGH,
-    createdAt: new Date('2025-01-10T07:00:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-10T07:00:00.000Z'), // Fixed timestamp
-    category: "Development"
-  },
-  {
-    id: generateId(),
-    title: "Update project README",
-    description: "Add installation instructions, API documentation, and contribution guidelines to the main README file.",
-    completed: false,
-    priority: TaskPriority.MEDIUM,
-    createdAt: new Date('2025-01-10T04:00:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-10T04:00:00.000Z'), // Fixed timestamp
-    category: "Documentation"
-  },
-  {
-    id: generateId(),
-    title: "Code review for PR #123",
-    completed: false,
-    priority: TaskPriority.LOW,
-    createdAt: new Date('2025-01-10T09:30:00.000Z'), // Fixed timestamp
-    updatedAt: new Date('2025-01-10T09:30:00.000Z'), // Fixed timestamp
-    category: "Development"
-  },
-];
-
+/**
+ * Demo Page Component
+ * 
+ * Showcases all enhanced features of the task management app:
+ * - Task creation with due dates
+ * - Task completion with visual feedback
+ * - Priority-based sorting
+ * - Local storage persistence
+ * - Smooth animations
+ * - Advanced filtering
+ * - Overdue task indicators
+ */
 export default function DemoPage() {
-  const [tasks, setTasks] = useState<Task[]>(sampleTasks);
-  const [filter, setFilter] = useState<TaskFilter>({
-    status: TaskStatus.ALL
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [currentFilter, setCurrentFilter] = useState({
+    status: TaskStatus.ALL,
+    priority: undefined as TaskPriority | undefined,
+    category: undefined as string | undefined,
+    search: undefined as string | undefined
   });
-  const [loading, setLoading] = useState(false);
-  const [showLoadingDemo, setShowLoadingDemo] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
-  // Get available categories for filter
-  const availableCategories = Array.from(
-    new Set(tasks.filter(task => task.category).map(task => task.category!))
-  );
-
-  // Handler functions
-  const handleCreateTask = useCallback(async (taskInput: CreateTaskInput) => {
-    setLoading(true);
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newTask: Task = {
-      ...taskInput,
-      id: generateId(),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    setTasks(prev => [newTask, ...prev]);
-    setLoading(false);
-  }, []);
-
-  const handleToggleComplete = useCallback((taskId: string) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
-        ? { ...task, completed: !task.completed, updatedAt: new Date() }
-        : task
-    ));
-  }, []);
-
-  const handleEditTask = useCallback((updatedTask: Task) => {
-    // For demo purposes, we'll just show an alert
-    alert(`Edit task: ${updatedTask.title}\n\nIn a real app, this would open an edit form.`);
-  }, []);
-
-  const handleDeleteTask = useCallback((taskId: string) => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      setTasks(prev => prev.filter(task => task.id !== taskId));
+  // Load tasks from localStorage on mount and create demo data if empty
+  useEffect(() => {
+    const storedTasks = loadTasksFromStorage();
+    if (storedTasks.length > 0) {
+      setTasks(storedTasks);
+    } else {
+      // Create enhanced demo tasks with due dates and varied states
+      const demoTasks: Task[] = [
+        {
+          id: generateId(),
+          title: 'Complete project milestone',
+          description: 'Finish the core functionality and prepare for the next sprint review.',
+          completed: false,
+          priority: TaskPriority.HIGH,
+          createdAt: new Date('2025-01-08T10:00:00Z'),
+          updatedAt: new Date('2025-01-08T10:00:00Z'),
+          category: 'Development',
+          dueDate: new Date('2025-01-15T23:59:59Z') // Due in future
+        },
+        {
+          id: generateId(),
+          title: 'Update design system documentation',
+          description: 'Add new component examples and usage guidelines for the team.',
+          completed: true,
+          priority: TaskPriority.MEDIUM,
+          createdAt: new Date('2025-01-05T09:00:00Z'),
+          updatedAt: new Date('2025-01-09T15:30:00Z'),
+          category: 'Design',
+          dueDate: new Date('2025-01-10T17:00:00Z') // Was due recently
+        },
+        {
+          id: generateId(),
+          title: 'Fix critical security vulnerability',
+          description: 'Address the authentication bypass issue found in the security audit.',
+          completed: false,
+          priority: TaskPriority.HIGH,
+          createdAt: new Date('2025-01-10T08:00:00Z'),
+          updatedAt: new Date('2025-01-10T08:00:00Z'),
+          category: 'Security',
+          dueDate: new Date('2025-01-12T12:00:00Z') // Due soon
+        },
+        {
+          id: generateId(),
+          title: 'Optimize database queries',
+          description: 'Improve performance of the user dashboard by optimizing slow SQL queries.',
+          completed: false,
+          priority: TaskPriority.MEDIUM,
+          createdAt: new Date('2025-01-07T14:00:00Z'),
+          updatedAt: new Date('2025-01-07T14:00:00Z'),
+          category: 'Performance',
+          dueDate: new Date('2025-01-08T23:59:59Z') // Overdue!
+        },
+        {
+          id: generateId(),
+          title: 'Team retrospective meeting',
+          completed: true,
+          priority: TaskPriority.LOW,
+          createdAt: new Date('2025-01-09T11:00:00Z'),
+          updatedAt: new Date('2025-01-09T16:00:00Z'),
+          category: 'Meetings'
+        },
+        {
+          id: generateId(),
+          title: 'Code review for authentication module',
+          description: 'Review the new OAuth implementation and provide feedback.',
+          completed: false,
+          priority: TaskPriority.MEDIUM,
+          createdAt: new Date('2025-01-10T13:00:00Z'),
+          updatedAt: new Date('2025-01-10T13:00:00Z'),
+          category: 'Development',
+          dueDate: new Date('2025-01-20T17:00:00Z')
+        },
+        {
+          id: generateId(),
+          title: 'Prepare quarterly presentation',
+          description: 'Create slides for the Q1 business review meeting with stakeholders.',
+          completed: false,
+          priority: TaskPriority.HIGH,
+          createdAt: new Date('2025-01-06T10:00:00Z'),
+          updatedAt: new Date('2025-01-06T10:00:00Z'),
+          category: 'Business',
+          dueDate: new Date('2025-01-14T09:00:00Z')
+        },
+        {
+          id: generateId(),
+          title: 'Write API documentation',
+          description: 'Document the new REST endpoints for the mobile team.',
+          completed: false,
+          priority: TaskPriority.LOW,
+          createdAt: new Date('2025-01-09T16:00:00Z'),
+          updatedAt: new Date('2025-01-09T16:00:00Z'),
+          category: 'Documentation',
+          dueDate: new Date('2025-01-25T17:00:00Z')
+        }
+      ];
+      
+      setTasks(demoTasks);
+      saveTasksToStorage(demoTasks);
     }
   }, []);
 
-  const toggleLoadingDemo = () => {
-    setShowLoadingDemo(!showLoadingDemo);
+  // Update available categories when tasks change
+  useEffect(() => {
+    const categories = Array.from(new Set(
+      tasks
+        .map(task => task.category)
+        .filter((category): category is string => Boolean(category))
+    )).sort();
+    setAvailableCategories(categories);
+  }, [tasks]);
+
+  /**
+   * Handle task creation
+   */
+  const handleTaskCreated = (newTask: Task) => {
+    const updatedTasks = [newTask, ...tasks];
+    setTasks(updatedTasks);
+    saveTasksToStorage(updatedTasks);
   };
 
-  const resetTasks = () => {
-    setTasks(sampleTasks);
-    setFilter({
-      status: TaskStatus.ALL
-    });
+  /**
+   * Handle task completion toggle
+   */
+  const handleToggleComplete = (taskId: string) => {
+    const updatedTasks = tasks.map(task =>
+      task.id === taskId 
+        ? { ...task, completed: !task.completed, updatedAt: new Date() }
+        : task
+    );
+    setTasks(updatedTasks);
+    saveTasksToStorage(updatedTasks);
+  };
+
+  /**
+   * Handle task deletion
+   */
+  const handleDeleteTask = (taskId: string) => {
+    const updatedTasks = tasks.filter(task => task.id !== taskId);
+    setTasks(updatedTasks);
+    saveTasksToStorage(updatedTasks);
+  };
+
+  /**
+   * Sample tasks for feature showcase
+   */
+  const getSampleTasks = () => {
+    const now = new Date();
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    return [
+      {
+        id: 'sample-completed',
+        title: 'Completed Task Example',
+        description: 'This task shows the completed state with strikethrough text and fade effect.',
+        completed: true,
+        priority: TaskPriority.MEDIUM,
+        createdAt: yesterday,
+        updatedAt: now,
+        category: 'Demo'
+      },
+      {
+        id: 'sample-overdue',
+        title: 'Overdue Task Example',
+        description: 'This task is overdue and shows the red border and warning indicators.',
+        completed: false,
+        priority: TaskPriority.HIGH,
+        createdAt: yesterday,
+        updatedAt: yesterday,
+        category: 'Demo',
+        dueDate: yesterday
+      },
+      {
+        id: 'sample-due-soon',
+        title: 'Due Soon Example',
+        description: 'This task is due tomorrow and shows proper due date formatting.',
+        completed: false,
+        priority: TaskPriority.MEDIUM,
+        createdAt: yesterday,
+        updatedAt: yesterday,
+        category: 'Demo',
+        dueDate: tomorrow
+      }
+    ] as Task[];
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-12">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-foreground">
-          Component Demo
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          Enhanced Task Management Demo
         </h1>
-        <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-          Interactive showcase of our task management components with different states and configurations.
-          Try interacting with the components to see how they behave!
+        <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+          Experience all the advanced features including task completion with visual feedback, 
+          due date management, priority-based sorting, localStorage persistence, and smooth animations.
         </p>
-        
-        {/* Demo Controls */}
-        <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-          <button
-            onClick={toggleLoadingDemo}
-            className="btn btn-outline btn-sm"
-          >
-            {showLoadingDemo ? 'Hide' : 'Show'} Loading States
-          </button>
-          <button
-            onClick={resetTasks}
-            className="btn btn-outline btn-sm"
-          >
-            Reset Demo Data
-          </button>
-          <span className="text-sm text-muted-foreground">
-            {tasks.length} tasks • {tasks.filter(t => t.completed).length} completed
-          </span>
+      </div>
+
+      {/* Feature Showcase Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">✨ New Features</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Task completion with visual feedback
+          </div>
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Due date picker with overdue indicators
+          </div>
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Priority-based sorting controls
+          </div>
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Local storage persistence
+          </div>
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Smooth animations and transitions
+          </div>
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <span className="text-green-500">✓</span>
+            Enhanced filtering and search
+          </div>
         </div>
       </div>
 
-      {/* TaskCard Component Demo */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">TaskCard Component</h2>
-          <p className="text-muted-foreground">
-            Individual task cards showing different priorities, states, and content variations
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* High Priority - Incomplete */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">High Priority (Incomplete)</h3>
+      {/* Sample Task Cards Showcase */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Feature Examples</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {getSampleTasks().map((task) => (
             <TaskCard
-              task={tasks.find(t => t.priority === TaskPriority.HIGH && !t.completed) ?? tasks[0]!}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEditTask}
-              onDelete={handleDeleteTask}
+              key={task.id}
+              task={task}
+              onToggleComplete={() => {}} // Demo only - no functionality
+              className="opacity-90 cursor-not-allowed"
             />
-          </div>
-
-          {/* Medium Priority - Completed */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Medium Priority (Completed)</h3>
-            <TaskCard
-              task={tasks.find(t => t.priority === TaskPriority.MEDIUM && t.completed) ?? tasks[1]!}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEditTask}
-              onDelete={handleDeleteTask}
-            />
-          </div>
-
-          {/* Low Priority - No Description */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Low Priority (No Description)</h3>
-            <TaskCard
-              task={tasks.find(t => t.priority === TaskPriority.LOW && !t.description) ?? tasks[2]!}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEditTask}
-              onDelete={handleDeleteTask}
-            />
-          </div>
+          ))}
         </div>
-      </section>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+          These are example task states showing different visual feedback (demo only - not interactive)
+        </p>
+      </div>
 
-      {/* AddTaskForm Component Demo */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">AddTaskForm Component</h2>
-          <p className="text-muted-foreground">
-            Task creation form with validation, character counters, and loading states
-          </p>
-        </div>
-
-        <div className="max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Left Sidebar - Add Task Form */}
+        <div className="lg:col-span-1 space-y-6">
           <AddTaskForm
-            onCreateTask={handleCreateTask}
-            loading={loading}
+            onTaskCreated={handleTaskCreated}
+            initiallyCollapsed={false}
           />
-        </div>
-      </section>
 
-      {/* TaskFilter Component Demo */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">TaskFilter Component</h2>
-          <p className="text-muted-foreground">
-            Filtering controls with status, priority, and category options
-          </p>
+          {/* Filter Component */}
+          {availableCategories.length > 0 && (
+            <TaskFilter
+              filter={{
+                status: currentFilter.status,
+                ...(currentFilter.priority && { priority: currentFilter.priority }),
+                ...(currentFilter.category && { category: currentFilter.category })
+              }}
+              onFilterChange={(filter) => {
+                setCurrentFilter({
+                  status: filter.status,
+                  priority: filter.priority,
+                  category: filter.category,
+                  search: currentFilter.search
+                });
+              }}
+              availableCategories={availableCategories}
+            />
+          )}
+
+          {/* Instructions */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Try These Features:</h3>
+            <ul className="text-sm text-blue-800 dark:text-blue-400 space-y-1">
+              <li>• Click checkboxes to complete tasks</li>
+              <li>• Add tasks with due dates</li>
+              <li>• Try different sorting options</li>
+              <li>• Use filters to organize tasks</li>
+              <li>• Watch for overdue indicators</li>
+              <li>• Toggle hide completed tasks</li>
+            </ul>
+          </div>
         </div>
 
-        <div className="max-w-2xl mx-auto">
-          <TaskFilterComponent
-            filter={filter}
-            onFilterChange={setFilter}
-            availableCategories={availableCategories}
-          />
-        </div>
-      </section>
-
-      {/* TaskList Component Demo */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">TaskList Component</h2>
-          <p className="text-muted-foreground">
-            Complete task list with filtering, sorting, and state management
-          </p>
-        </div>
-
-        <div className="max-w-5xl mx-auto">
+        {/* Main Content - Task List */}
+        <div className="lg:col-span-3">
           <TaskList
             tasks={tasks}
-            filter={filter}
             onToggleComplete={handleToggleComplete}
-            onEdit={handleEditTask}
-            onDelete={handleDeleteTask}
-            loading={showLoadingDemo}
+            onDeleteTask={handleDeleteTask}
+            onTasksUpdate={setTasks}
+            currentFilter={{
+              status: currentFilter.status,
+              ...(currentFilter.priority && { priority: currentFilter.priority }),
+              ...(currentFilter.category && { category: currentFilter.category }),
+              ...(currentFilter.search && { search: currentFilter.search })
+            }}
           />
         </div>
-      </section>
+      </div>
 
-      {/* Empty State Demo */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">Empty States</h2>
-          <p className="text-muted-foreground">
-            How components look when there's no data to display
-          </p>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Empty Task List */}
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-foreground">Empty Task List</h3>
-            <TaskList
-              tasks={[]}
-              filter={{ status: TaskStatus.ALL }}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEditTask}
-              onDelete={handleDeleteTask}
-              loading={false}
-            />
+      {/* Technical Details */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Technical Implementation</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600 dark:text-gray-300">
+          <div>
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Visual Feedback</h3>
+            <ul className="space-y-1">
+              <li>• Strikethrough text for completed tasks</li>
+              <li>• Opacity fade effects with transitions</li>
+              <li>• Color-coded priority indicators</li>
+              <li>• Overdue task red borders and pulse animation</li>
+              <li>• Smooth hover and focus states</li>
+            </ul>
           </div>
-
-          {/* Filtered Empty State */}
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-foreground">No Results for Filter</h3>
-            <TaskList
-              tasks={tasks}
-              filter={{ status: TaskStatus.ALL, priority: TaskPriority.HIGH, category: "NonExistent" }}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEditTask}
-              onDelete={handleDeleteTask}
-              loading={false}
-            />
+          <div>
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Data Management</h3>
+            <ul className="space-y-1">
+              <li>• localStorage persistence with error handling</li>
+              <li>• Priority-based sorting algorithms</li>
+              <li>• Due date validation and formatting</li>
+              <li>• User preference storage</li>
+              <li>• Automatic timestamps on updates</li>
+            </ul>
           </div>
         </div>
-      </section>
-
-      {/* Component Variations */}
-      <section className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2">Component Variations</h2>
-          <p className="text-muted-foreground">
-            Different ways components can be styled and configured
-          </p>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Compact TaskCard */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-foreground">Compact Layout</h3>
-            <div className="space-y-3">
-              {tasks.slice(0, 3).map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onToggleComplete={handleToggleComplete}
-                  onEdit={handleEditTask}
-                  onDelete={handleDeleteTask}
-                  className="scale-90 origin-left"
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Priority Focused */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-foreground">Priority Showcase</h3>
-            <div className="space-y-3">
-              {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map(priority => {
-                const baseTask = tasks.find(t => t.priority === priority);
-                if (!baseTask) return null;
-                
-                return (
-                  <TaskCard
-                    key={`${baseTask.id}-${priority}`}
-                    task={{ ...baseTask, priority }}
-                    onToggleComplete={handleToggleComplete}
-                    onEdit={handleEditTask}
-                    onDelete={handleDeleteTask}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <div className="text-center py-8 border-t border-border">
-        <p className="text-muted-foreground">
-          This demo showcases the complete task management component library.
-          All components are fully interactive and demonstrate real-world usage patterns.
-        </p>
       </div>
     </div>
   );

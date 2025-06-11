@@ -72,6 +72,12 @@ export interface Task {
    * @validation Optional string field for organizing tasks
    */
   category?: string;
+
+  /**
+   * Due date for the task
+   * @validation Optional Date object indicating when the task should be completed
+   */
+  dueDate?: Date;
 }
 
 /**

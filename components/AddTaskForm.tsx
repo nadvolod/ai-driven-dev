@@ -1,32 +1,31 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { CreateTaskInput, TaskPriority } from '@/types/task';
+import { cn, formatDateForInput, generateId } from '@/lib/utils';
+import { Task, TaskPriority } from '@/types/task';
 import React, { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 
 /**
- * Form data interface that matches CreateTaskInput
+ * Form data interface for task creation
  */
 interface TaskFormData {
   title: string;
-  description?: string;
+  description: string;
   priority: TaskPriority;
-  category?: string;
+  category: string;
+  dueDate: string; // HTML date input uses string format (YYYY-MM-DD)
 }
 
 /**
  * Props interface for AddTaskForm component
  */
-interface AddTaskFormProps {
-  /** Callback function when task is created */
-  onCreateTask: (task: CreateTaskInput) => Promise<void> | void;
-  /** Loading state for form submission */
-  loading?: boolean;
+export interface AddTaskFormProps {
+  /** Callback function when a task is successfully created */
+  onTaskCreated: (task: Task) => void;
   /** Optional className for custom styling */
   className?: string;
-  /** Auto-expand form (skip collapsed state) */
-  autoExpand?: boolean;
+  /** Whether the form is in a collapsed state initially */
+  initiallyCollapsed?: boolean;
 }
 
 /**
@@ -45,47 +44,41 @@ const CATEGORY_SUGGESTIONS = [
   'Development',
   'Design',
   'Marketing',
-  'Planning',
-  'Research',
   'Testing',
   'Documentation',
   'Meeting',
-  'Personal',
-  'Work'
+  'Research',
+  'Planning',
+  'Review',
+  'Deployment'
 ] as const;
 
 /**
  * AddTaskForm Component
  * 
- * A comprehensive form for creating new tasks using React Hook Form.
- * 
- * Features:
- * - React Hook Form integration for form state management
- * - TypeScript validation with proper error handling
- * - Required title field with character limit
- * - Optional description with character limit
- * - Priority selection dropdown
- * - Optional category with autocomplete suggestions
- * - Form reset after successful submission
- * - Loading state with disabled inputs
- * - Responsive design with Tailwind CSS
- * - Focus states and error styling
- * - Collapsible/expandable interface
+ * A comprehensive form component for creating new tasks with:
+ * - Title input with validation (required, max 100 characters)
+ * - Description textarea (optional, max 500 characters)
+ * - Priority selection (required)
+ * - Category input with autocomplete suggestions (optional)
+ * - Due date picker (optional)
+ * - Form validation with error handling
+ * - Collapsible interface for space efficiency
+ * - Loading states and success feedback
+ * - Accessibility features and keyboard navigation
  */
 export const AddTaskForm: React.FC<AddTaskFormProps> = ({
-  onCreateTask,
-  loading = false,
-  className,
-  autoExpand = false
+  onTaskCreated,
+  className = '',
+  initiallyCollapsed = false
 }) => {
-  const [isExpanded, setIsExpanded] = useState(autoExpand);
+  const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // React Hook Form setup with validation rules
   const {
     register,
     handleSubmit,
-    control,
     reset,
     watch,
     formState: { errors, isValid }
@@ -95,314 +88,386 @@ export const AddTaskForm: React.FC<AddTaskFormProps> = ({
       title: '',
       description: '',
       priority: TaskPriority.MEDIUM,
-      category: ''
+      category: '',
+      dueDate: ''
     }
   });
 
-  // Watch field values for character counters
-  const titleValue = watch('title');
-  const descriptionValue = watch('description');
+  // Watch form values for character counts and validation
+  const watchedTitle = watch('title');
+  const watchedDescription = watch('description');
+  const watchedCategory = watch('category');
 
   /**
    * Handle form submission
    */
   const onSubmit = async (data: TaskFormData) => {
+    setIsSubmitting(true);
+    setSubmitSuccess(false);
+
     try {
-      setIsSubmitting(true);
+      // Create task object
+      const now = new Date();
+      const task: Task = {
+        id: generateId(),
+        title: data.title.trim(),
+        completed: false,
+        priority: data.priority,
+        createdAt: now,
+        updatedAt: now,
+        ...(data.description.trim() && { description: data.description.trim() }),
+        ...(data.category.trim() && { category: data.category.trim() }),
+        ...(data.dueDate && { dueDate: new Date(data.dueDate) })
+      };
 
-             // Transform form data to CreateTaskInput
-       const taskInput: CreateTaskInput = {
-         title: data.title.trim(),
-         ...(data.description?.trim() && { description: data.description.trim() }),
-         priority: data.priority,
-         ...(data.category?.trim() && { category: data.category.trim() }),
-         completed: false
-       };
+      // Call the callback function
+      onTaskCreated(task);
 
-      // Call the parent's create function
-      await onCreateTask(taskInput);
+      // Show success state
+      setSubmitSuccess(true);
+      
+      // Reset form after a short delay
+      setTimeout(() => {
+        reset();
+        setSubmitSuccess(false);
+        if (initiallyCollapsed) {
+          setIsCollapsed(true);
+        }
+      }, 1500);
 
-      // Reset form and collapse if successful
-      reset();
-      if (!autoExpand) {
-        setIsExpanded(false);
-      }
     } catch (error) {
       console.error('Error creating task:', error);
-      // Error handling could be enhanced with toast notifications
     } finally {
       setIsSubmitting(false);
     }
   };
 
   /**
-   * Handle form cancellation
+   * Handle form toggle
    */
-  const handleCancel = () => {
-    reset();
-    if (!autoExpand) {
-      setIsExpanded(false);
+  const handleToggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+    if (!isCollapsed) {
+      // Reset form when collapsing
+      reset();
+      setSubmitSuccess(false);
     }
   };
 
   /**
-   * Expand form when add button is clicked
+   * Get minimum date for due date input (today)
    */
-  const handleExpand = () => {
-    setIsExpanded(true);
+  const getMinDate = (): string => {
+    return formatDateForInput(new Date());
   };
 
-  // Determine loading state
-  const isFormLoading = loading || isSubmitting;
-
-  // Collapsed state (show add button)
-  if (!isExpanded && !autoExpand) {
-    return (
-      <div className={cn('w-full', className)}>
-        <button
-          onClick={handleExpand}
-          className="w-full p-6 border-2 border-dashed border-border rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors duration-200 flex items-center justify-center space-x-3 group"
-        >
-          <div className="w-6 h-6 rounded-full bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+  return (
+    <div className={cn('bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm', className)}>
+      {/* Header */}
+      <div 
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+        onClick={handleToggleCollapse}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </div>
-          <span className="font-medium">Add New Task</span>
-        </button>
-      </div>
-    );
-  }
-
-  // Expanded form state
-  return (
-    <div className={cn('w-full', className)}>
-      <form onSubmit={handleSubmit(onSubmit)} className="card space-y-6">
-        {/* Form Header */}
-        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Create New Task</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add a new task to your list with details and priority
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add New Task</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {isCollapsed ? 'Click to expand form' : 'Create a new task with details'}
             </p>
           </div>
-          {!autoExpand && (
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
         </div>
+        
+        <button
+          type="button"
+          className={cn(
+            'p-2 rounded-lg transition-all duration-200',
+            'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+            'hover:bg-gray-100 dark:hover:bg-gray-700',
+            'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+          )}
+          aria-label={isCollapsed ? 'Expand form' : 'Collapse form'}
+        >
+          <svg 
+            className={cn('w-5 h-5 transition-transform duration-200', !isCollapsed && 'rotate-180')} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
 
-        <div className="space-y-5">
-          {/* Title Field */}
-          <div className="space-y-2">
-            <label htmlFor="title" className="block text-sm font-medium text-foreground">
-              Task Title <span className="text-destructive">*</span>
-            </label>
-            <input
-              id="title"
-              type="text"
-              disabled={isFormLoading}
-              placeholder="Enter a clear, concise task title..."
-              className={cn(
-                'w-full px-4 py-3 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground',
-                'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
-                'transition-colors duration-200',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                errors.title 
-                  ? 'border-destructive focus:ring-destructive/20 focus:border-destructive' 
-                  : 'border-border'
-              )}
-              {...register('title', {
-                required: 'Task title is required',
-                minLength: {
-                  value: 3,
-                  message: 'Title must be at least 3 characters long'
-                },
-                maxLength: {
-                  value: 100,
-                  message: 'Title must be 100 characters or less'
-                },
-                pattern: {
-                  value: /^(?!\s*$).+/,
-                  message: 'Title cannot be only whitespace'
-                }
-              })}
-            />
-            <div className="flex items-center justify-between">
-              {errors.title && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {errors.title.message}
-                </p>
-              )}
-              <p className={cn(
-                'text-xs',
-                titleValue?.length > 90 ? 'text-destructive' : 'text-muted-foreground'
-              )}>
-                {titleValue?.length || 0}/100 characters
-              </p>
-            </div>
-          </div>
-
-          {/* Description Field */}
-          <div className="space-y-2">
-            <label htmlFor="description" className="block text-sm font-medium text-foreground">
-              Description <span className="text-muted-foreground text-xs">(optional)</span>
-            </label>
-            <textarea
-              id="description"
-              rows={3}
-              disabled={isFormLoading}
-              placeholder="Provide additional details about this task..."
-              className={cn(
-                'w-full px-4 py-3 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground resize-none',
-                'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
-                'transition-colors duration-200',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                errors.description 
-                  ? 'border-destructive focus:ring-destructive/20 focus:border-destructive' 
-                  : 'border-border'
-              )}
-              {...register('description', {
-                maxLength: {
-                  value: 500,
-                  message: 'Description must be 500 characters or less'
-                }
-              })}
-            />
-            <div className="flex items-center justify-between">
-              {errors.description && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {errors.description.message}
-                </p>
-              )}
-              <p className={cn(
-                'text-xs',
-                (descriptionValue?.length || 0) > 450 ? 'text-destructive' : 'text-muted-foreground'
-              )}>
-                {descriptionValue?.length || 0}/500 characters
-              </p>
-            </div>
-          </div>
-
-          {/* Priority and Category Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Priority Field */}
+      {/* Form Content */}
+      <div className={cn(
+        'overflow-hidden transition-all duration-300 ease-in-out',
+        isCollapsed ? 'max-h-0' : 'max-h-[800px]'
+      )}>
+        <div className="p-4 pt-0 border-t border-gray-200 dark:border-gray-700">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Title Input */}
             <div className="space-y-2">
-              <label htmlFor="priority" className="block text-sm font-medium text-foreground">
-                Priority
-              </label>
-              <Controller
-                name="priority"
-                control={control}
-                render={({ field }) => (
-                  <select
-                    id="priority"
-                    disabled={isFormLoading}
-                    className={cn(
-                      'w-full px-4 py-3 rounded-lg border bg-background text-foreground',
-                      'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
-                      'transition-colors duration-200',
-                      'disabled:opacity-50 disabled:cursor-not-allowed',
-                      'border-border'
-                    )}
-                    {...field}
-                  >
-                    {PRIORITY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              />
-            </div>
-
-            {/* Category Field */}
-            <div className="space-y-2">
-              <label htmlFor="category" className="block text-sm font-medium text-foreground">
-                Category <span className="text-muted-foreground text-xs">(optional)</span>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Task Title <span className="text-red-500">*</span>
               </label>
               <input
-                id="category"
-                type="text"
-                disabled={isFormLoading}
-                placeholder="e.g. Work, Personal, Project..."
-                list="category-suggestions"
-                className={cn(
-                  'w-full px-4 py-3 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground',
-                  'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
-                  'transition-colors duration-200',
-                  'disabled:opacity-50 disabled:cursor-not-allowed',
-                  'border-border'
-                )}
-                {...register('category', {
-                  maxLength: {
-                    value: 50,
-                    message: 'Category must be 50 characters or less'
+                {...register('title', {
+                  required: 'Title is required',
+                  minLength: { value: 1, message: 'Title cannot be empty' },
+                  maxLength: { value: 100, message: 'Title must be 100 characters or less' },
+                  pattern: {
+                    value: /^(?!\s*$).+/,
+                    message: 'Title cannot be only whitespace'
                   }
                 })}
+                type="text"
+                id="title"
+                placeholder="Enter a descriptive title for your task..."
+                className={cn(
+                  'w-full px-4 py-3 rounded-lg border transition-all duration-200',
+                  'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+                  'dark:bg-gray-700 dark:text-white dark:placeholder-gray-400',
+                  errors.title
+                    ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/10'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                )}
+                aria-describedby={errors.title ? 'title-error' : 'title-help'}
               />
-              <datalist id="category-suggestions">
-                {CATEGORY_SUGGESTIONS.map((category) => (
-                  <option key={category} value={category} />
-                ))}
-              </datalist>
-              {errors.category && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {errors.category.message}
-                </p>
-              )}
+              <div className="flex justify-between items-center">
+                <div className="text-xs space-y-1">
+                  {errors.title && (
+                    <p id="title-error" className="text-red-600 dark:text-red-400">
+                      {errors.title.message}
+                    </p>
+                  )}
+                  {!errors.title && (
+                    <p id="title-help" className="text-gray-500 dark:text-gray-400">
+                      Choose a clear, specific title for your task
+                    </p>
+                  )}
+                </div>
+                <span className={cn(
+                  'text-xs tabular-nums',
+                  watchedTitle?.length > 90 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-gray-500 dark:text-gray-400'
+                )}>
+                  {watchedTitle?.length || 0}/100
+                </span>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Form Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-          {!autoExpand && (
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isFormLoading}
-              className="btn btn-outline"
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={isFormLoading || !isValid}
-            className={cn(
-              'btn btn-primary',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
-              'flex items-center gap-2'
-            )}
-          >
-            {isFormLoading && (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            )}
-            <span>{isFormLoading ? 'Creating...' : 'Create Task'}</span>
-          </button>
+            {/* Description Input */}
+            <div className="space-y-2">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description
+              </label>
+              <textarea
+                {...register('description', {
+                  maxLength: { value: 500, message: 'Description must be 500 characters or less' }
+                })}
+                id="description"
+                rows={3}
+                placeholder="Add more details about this task..."
+                className={cn(
+                  'w-full px-4 py-3 rounded-lg border transition-all duration-200 resize-none',
+                  'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+                  'dark:bg-gray-700 dark:text-white dark:placeholder-gray-400',
+                  errors.description
+                    ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/10'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                )}
+                aria-describedby={errors.description ? 'description-error' : 'description-help'}
+              />
+              <div className="flex justify-between items-center">
+                <div className="text-xs space-y-1">
+                  {errors.description && (
+                    <p id="description-error" className="text-red-600 dark:text-red-400">
+                      {errors.description.message}
+                    </p>
+                  )}
+                  {!errors.description && (
+                    <p id="description-help" className="text-gray-500 dark:text-gray-400">
+                      Optional: Provide additional context or requirements
+                    </p>
+                  )}
+                </div>
+                <span className={cn(
+                  'text-xs tabular-nums',
+                  watchedDescription?.length > 450 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-gray-500 dark:text-gray-400'
+                )}>
+                  {watchedDescription?.length || 0}/500
+                </span>
+              </div>
+            </div>
+
+            {/* Priority and Due Date Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Priority Selection */}
+              <div className="space-y-2">
+                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Priority <span className="text-red-500">*</span>
+                </label>
+                <select
+                  {...register('priority', { required: 'Priority is required' })}
+                  id="priority"
+                  className={cn(
+                    'w-full px-4 py-3 rounded-lg border transition-all duration-200',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+                    'dark:bg-gray-700 dark:text-white',
+                    errors.priority
+                      ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/10'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                  )}
+                  aria-describedby={errors.priority ? 'priority-error' : 'priority-help'}
+                >
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.priority && (
+                  <p id="priority-error" className="text-xs text-red-600 dark:text-red-400">
+                    {errors.priority.message}
+                  </p>
+                )}
+                {!errors.priority && (
+                  <p id="priority-help" className="text-xs text-gray-500 dark:text-gray-400">
+                    Select the task urgency level
+                  </p>
+                )}
+              </div>
+
+              {/* Due Date */}
+              <div className="space-y-2">
+                <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Due Date
+                </label>
+                <input
+                  {...register('dueDate')}
+                  type="date"
+                  id="dueDate"
+                  min={getMinDate()}
+                  className={cn(
+                    'w-full px-4 py-3 rounded-lg border transition-all duration-200',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+                    'dark:bg-gray-700 dark:text-white dark:color-scheme-dark',
+                    'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                  )}
+                  aria-describedby="dueDate-help"
+                />
+                <p id="dueDate-help" className="text-xs text-gray-500 dark:text-gray-400">
+                  Optional: Set a target completion date
+                </p>
+              </div>
+            </div>
+
+            {/* Category Input */}
+            <div className="space-y-2">
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Category
+              </label>
+              <div className="relative">
+                <input
+                  {...register('category', {
+                    maxLength: { value: 50, message: 'Category must be 50 characters or less' }
+                  })}
+                  type="text"
+                  id="category"
+                  list="category-suggestions"
+                  placeholder="Enter or select a category..."
+                  className={cn(
+                    'w-full px-4 py-3 rounded-lg border transition-all duration-200',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+                    'dark:bg-gray-700 dark:text-white dark:placeholder-gray-400',
+                    errors.category
+                      ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/10'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                  )}
+                  aria-describedby={errors.category ? 'category-error' : 'category-help'}
+                />
+                <datalist id="category-suggestions">
+                  {CATEGORY_SUGGESTIONS.map((category) => (
+                    <option key={category} value={category} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="text-xs space-y-1">
+                  {errors.category && (
+                    <p id="category-error" className="text-red-600 dark:text-red-400">
+                      {errors.category.message}
+                    </p>
+                  )}
+                  {!errors.category && (
+                    <p id="category-help" className="text-gray-500 dark:text-gray-400">
+                      Optional: Organize tasks by project or type
+                    </p>
+                  )}
+                </div>
+                <span className={cn(
+                  'text-xs tabular-nums',
+                  watchedCategory?.length > 45 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-gray-500 dark:text-gray-400'
+                )}>
+                  {watchedCategory?.length || 0}/50
+                </span>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex justify-end pt-4">
+              <button
+                type="submit"
+                disabled={!isValid || isSubmitting}
+                className={cn(
+                  'px-6 py-3 rounded-lg font-medium transition-all duration-200',
+                  'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                  'disabled:cursor-not-allowed',
+                  submitSuccess
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : isValid && !isSubmitting
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                    : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+                )}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center space-x-2">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Creating Task...</span>
+                  </span>
+                ) : submitSuccess ? (
+                  <span className="flex items-center space-x-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Task Created!</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center space-x-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Create Task</span>
+                  </span>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </div>
   );
 }; 
