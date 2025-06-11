@@ -1,91 +1,36 @@
-import { generateId } from '@/lib/utils';
-import { API_ERROR_CODES, ApiError, CreateTaskResponse, GetTasksResponse, HTTP_STATUS } from '@/types/api';
+import { API_ERROR_CODES, ApiError, GetTasksResponse, HTTP_STATUS } from '@/types/api';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 /**
- * In-memory task storage for demo purposes
- * In a real application, this would be replaced with a database
+ * Basic Tasks API for Testing
+ * 
+ * This is a simple in-memory implementation for demonstration and testing.
+ * In a real application, this would connect to a database.
  */
-const tasks: Task[] = [
+
+// In-memory storage for demo purposes
+let tasks: Task[] = [
   {
-    id: '1a2b3c4d-5e6f-7890-abcd-ef1234567890',
-    title: 'Implement user authentication system',
-    description: 'Set up OAuth integration with Google and GitHub for secure user login. Include proper error handling and user session management.',
+    id: '1',
+    title: 'Sample Task 1',
+    description: 'This is a sample task for testing',
     completed: false,
-    priority: TaskPriority.HIGH,
-    createdAt: new Date('2025-01-08T10:00:00.000Z'),
-    updatedAt: new Date('2025-01-09T14:30:00.000Z'),
-    category: 'Development'
-  },
-  {
-    id: '2b3c4d5e-6f78-90ab-cdef-123456789012',
-    title: 'Design system documentation',
-    description: 'Create comprehensive documentation for our design system including component guidelines, color palettes, and usage examples.',
-    completed: true,
     priority: TaskPriority.MEDIUM,
-    createdAt: new Date('2025-01-05T09:15:00.000Z'),
-    updatedAt: new Date('2025-01-07T16:45:00.000Z'),
-    category: 'Design'
+    category: 'Development',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   },
   {
-    id: '3c4d5e6f-7890-abcd-ef12-34567890abcd',
-    title: 'Fix responsive layout issues',
-    description: 'Address mobile layout problems on the dashboard and task list pages. Test across different devices and screen sizes.',
-    completed: false,
-    priority: TaskPriority.HIGH,
-    createdAt: new Date('2025-01-10T07:00:00.000Z'),
-    updatedAt: new Date('2025-01-10T07:00:00.000Z'),
-    category: 'Development'
-  },
-  {
-    id: '4d5e6f78-90ab-cdef-1234-567890abcdef',
-    title: 'Team standup meeting',
+    id: '2',
+    title: 'Completed Sample Task',
+    description: 'This task is already completed',
     completed: true,
     priority: TaskPriority.LOW,
-    createdAt: new Date('2025-01-09T10:00:00.000Z'),
-    updatedAt: new Date('2025-01-09T11:00:00.000Z'),
-    category: 'Meetings'
-  },
-  {
-    id: '5e6f7890-abcd-ef12-3456-7890abcdef12',
-    title: 'Update project README',
-    description: 'Add installation instructions, API documentation, and contribution guidelines to the main README file.',
-    completed: false,
-    priority: TaskPriority.MEDIUM,
-    createdAt: new Date('2025-01-10T04:00:00.000Z'),
-    updatedAt: new Date('2025-01-10T04:00:00.000Z'),
-    category: 'Documentation'
-  },
-  {
-    id: '6f789012-3456-7890-abcd-ef123456789a',
-    title: 'Code review for PR #123',
-    completed: false,
-    priority: TaskPriority.LOW,
-    createdAt: new Date('2025-01-10T09:30:00.000Z'),
-    updatedAt: new Date('2025-01-10T09:30:00.000Z'),
-    category: 'Development'
-  },
-  {
-    id: '7890abcd-ef12-3456-7890-abcdef123456',
-    title: 'Implement dark mode theme',
-    description: 'Add dark mode support across the entire application with proper color schemes and user preference persistence.',
-    completed: false,
-    priority: TaskPriority.MEDIUM,
-    createdAt: new Date('2025-01-06T13:20:00.000Z'),
-    updatedAt: new Date('2025-01-08T10:15:00.000Z'),
-    category: 'Development'
-  },
-  {
-    id: '890abcde-f123-4567-890a-bcdef1234567',
-    title: 'Performance optimization audit',
-    description: 'Conduct comprehensive performance analysis and implement optimizations for faster page load times.',
-    completed: true,
-    priority: TaskPriority.HIGH,
-    createdAt: new Date('2025-01-03T11:00:00.000Z'),
-    updatedAt: new Date('2025-01-05T15:30:00.000Z'),
-    category: 'Performance'
+    category: 'Testing',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
 ];
 
@@ -354,83 +299,52 @@ const createTaskSchema = z.object({
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Parse request body
-    let body;
-    try {
-      body = await request.json();
-    } catch (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: API_ERROR_CODES.INVALID_REQUEST_BODY,
-            message: 'Invalid JSON in request body',
-            details: { reason: 'Request body must be valid JSON' }
-          }
-        },
-        { status: HTTP_STATUS.BAD_REQUEST }
-      );
-    }
-
-    // Validate request body using Zod schema
-    const validation = createTaskSchema.safeParse(body);
+    const body = await request.json();
     
-    if (!validation.success) {
-      const errorDetails = validation.error.errors.map(err => 
-        `${err.path.join('.')}: ${err.message}`
-      );
-      
+    // Basic validation
+    if (!body.title || typeof body.title !== 'string' || body.title.trim() === '') {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: API_ERROR_CODES.VALIDATION_ERROR,
-            message: 'Validation failed',
-            details: { errors: errorDetails }
-          }
-        },
-        { status: HTTP_STATUS.BAD_REQUEST }
+        { message: 'Title is required and must be a non-empty string' },
+        { status: 400 }
       );
     }
-
-    // Create new task with validated data
-    const now = new Date();
+    
+    if (body.priority && !['LOW', 'MEDIUM', 'HIGH'].includes(body.priority)) {
+      return NextResponse.json(
+        { message: 'Priority must be LOW, MEDIUM, or HIGH' },
+        { status: 400 }
+      );
+    }
+    
+    // Create new task
     const newTask: Task = {
-      id: generateId(),
-      title: validation.data.title,
-      completed: false,
-      priority: validation.data.priority as TaskPriority,
-      createdAt: now,
-      updatedAt: now,
-      ...(validation.data.description && { description: validation.data.description }),
-      ...(validation.data.category && { category: validation.data.category })
+      id: (Date.now() + Math.random()).toString(),
+      title: body.title.trim(),
+      description: body.description || undefined,
+      completed: body.completed || false,
+      priority: TaskPriority.MEDIUM,
+      category: body.category || undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-
-    // Add task to in-memory storage
-    tasks.push(newTask);
-
-    // Return success response with created task
-    return NextResponse.json(
-      {
-        success: true,
-        data: newTask
-      } as CreateTaskResponse,
-      { status: HTTP_STATUS.CREATED }
-    );
-
-  } catch (error) {
-    console.error('Error creating task:', error);
     
+    tasks.push(newTask);
+    
+    return NextResponse.json(newTask, { status: 201 });
+  } catch (error) {
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: API_ERROR_CODES.INTERNAL_SERVER_ERROR,
-          message: 'Internal server error',
-          details: { reason: 'An unexpected error occurred while creating the task' }
-        }
-      },
-      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
+      { message: 'Invalid JSON data' },
+      { status: 400 }
     );
   }
+}
+
+export async function DELETE() {
+  // Clear all tasks (for testing purposes)
+  tasks = [];
+  
+  return NextResponse.json(
+    { message: 'All tasks deleted' },
+    { status: 200 }
+  );
 } 
